@@ -1,29 +1,80 @@
 from pyamaze import maze
 import pygame, sys, time, random
+import numpy as np
 
-
-# Difficulty
+# Difficulty/Changing the Size of the Maze
 # mazesize = 10
 mazesize = 20
 # mazesize = 30
 # mazesize = 50
 
 
-# Creat random Maze with multiple paths
+'''Maze Creation'''
+# Create random Maze with multiple paths
 m = maze(mazesize, mazesize)
 m.CreateMaze(loopPercent=30)
+mazecoord = m.maze_map
+mazearray = np.full(((mazesize*2) + 1, (mazesize*2) + 1), 0)
 # m.run()
 
+# Maze Matrix Creation
+mazerow = 1
+mazecol = 1
+for xy, nsew in mazecoord.items():
+    if mazerow == mazesize + 1:
+        mazerow = 1
+        mazecol += 1
 
-mazecoord = m.maze_map
+    if xy[0] == mazerow and xy[1] == mazecol:
+        for dir, bin in nsew.items():
+
+            if dir == 'E' and bin == 0:
+                mazearray[xy[0] + mazerow - 2, xy[1] + mazecol] = 1
+                mazearray[xy[0] + mazerow - 1, xy[1] + mazecol] = 1
+                mazearray[xy[0] + mazerow, xy[1] + mazecol] = 1
+            
+
+            if dir == 'W' and bin == 0:
+                mazearray[xy[0] + mazerow - 2, xy[1] + mazecol - 2] = 1
+                mazearray[xy[0] + mazerow - 1, xy[1] + mazecol - 2] = 1
+                mazearray[xy[0] + mazerow, xy[1] + mazecol - 2] = 1
+
+            if dir == 'N' and bin == 0:
+                mazearray[xy[0] + mazerow - 2, xy[1] + mazecol - 2] = 1
+                mazearray[xy[0] + mazerow - 2, xy[1] + mazecol - 1] = 1
+                mazearray[xy[0] + mazerow - 2, xy[1] + mazecol] = 1
+
+            if dir == 'S' and bin == 0:
+                mazearray[xy[0] + mazerow, xy[1] + mazecol - 2] = 1
+                mazearray[xy[0] + mazerow, xy[1] + mazecol - 1] = 1
+                mazearray[xy[0] + mazerow, xy[1] + mazecol] = 1
+
+        mazerow += 1
+
+rowAC = mazearray.shape[0]
+colAC = mazearray.shape[1]
+# np.savetxt('BinaryMaze.csv', mazearray, delimiter=',', fmt='%d')
+
+
+'''Path Finding'''
+
+
+
+'''Game Creation'''
 # Adjust size of image and border around maze
-offset = 60
+border = 30
 frameSizeX = 800
 frameSizeY = 800
-mul = round((frameSizeX - offset)/mazesize)
 
+# Checks for errors encountered
+check_errors = pygame.init()
+if check_errors[1] > 0:
+    print(f'[!] Had {check_errors[1]} errors when initialising game, exiting...')
+    sys.exit(-1)
+else:
+    print('[+] Game successfully initialised')
 
-pygame.display.set_caption('Maze')
+pygame.display.set_caption('Maze Game')
 game_window = pygame.display.set_mode((frameSizeX, frameSizeY))
 
 
@@ -33,128 +84,91 @@ white = pygame.Color(255, 255, 255)
 red = pygame.Color(255, 0, 0)
 green = pygame.Color(0, 255, 0)
 
-
-# Wall Generation
-class Wall(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height):
+# Maze Drawing and Wall Creation 
+wallSize = min((frameSizeX - border*2) // colAC, (frameSizeY - border*2) // rowAC)
+class mazewall(pygame.sprite.Sprite):
+    def __init__(self, x, y, size):
         super().__init__()
-        self.image = pygame.Surface((width,height))
+        self.image = pygame.Surface((size, size))
         self.image.fill((white))
         self.rect = self.image.get_rect(topleft=(x, y))
 
+WALLS = pygame.sprite.Group()
+for row in range(rowAC):
+    for col in range(colAC):
+        if mazearray[row][col] == 1:
+            WALLS.add(mazewall((col*wallSize) + border, (row*wallSize) + border, wallSize))
 
-walls =[]
-for xy, nsew in mazecoord.items():
-    # print(xy, nsew)
-    for dir, bin in nsew.items():
-
-
-        if dir == 'E' and bin == 0:
-            xE = xy[1]*mul
-            yE = (xy[0]*mul)-mul
-
-
-            walls.append(Wall(xE + offset/2, yE + offset/2, 1, mul+1))
-
-
-        if dir == 'W' and bin == 0:
-            xW = (xy[1]*mul)-mul
-            yW = (xy[0]*mul)-mul
-            walls.append(Wall(xW + offset/2, yW + offset/2, 1, mul+1))
-
-
-        if dir == 'N' and bin == 0:
-            xN = (xy[1]*mul)-mul
-            yN = (xy[0]*mul)-mul
-            walls.append(Wall(xN + offset/2, yN + offset/2, mul+1, 1))
-
-
-        if dir == 'S' and bin == 0:
-            xS = (xy[1]*mul)-mul
-            yS = xy[0]*mul
-            walls.append(Wall(xS + offset/2, yS + offset/2, mul+1, 1))
-
-
+# Player and Wall Collision
 class Player(pygame.sprite.Sprite):
-    # def __init__(self, x, y):
-    #     super().__init__()
-    #     self.image = pygame.Surface((mul-2, mul-2))
-    #     self.image.fill(red)
-    #     self.rect = self.image.get_rect(topleft=(x, y))
-    #     self.speed = 1
-
-
-    # def update(self):
-    #     keys = pygame.key.get_pressed()
-    #     if keys[pygame.K_LEFT]:
-    #         self.rect.x -= self.speed
-    #     if keys[pygame.K_RIGHT]:
-    #         self.rect.x += self.speed
-    #     if keys[pygame.K_UP]:
-    #         self.rect.y -= self.speed
-    #     if keys[pygame.K_DOWN]:
-    #         self.rect.y += self.speed
-
-
-    #     # Check for collisions with walls
-    #     wall_collisions = pygame.sprite.spritecollide(self, walls, False)
-    #     for wall in wall_collisions:
-    #         if self.rect.left < wall.rect.left:
-    #             self.rect.right = wall.rect.left
-    #         elif self.rect.right > wall.rect.right:
-    #             self.rect.left = wall.rect.right
-    #         elif self.rect.top < wall.rect.top:
-    #             self.rect.bottom = wall.rect.top
-    #         elif self.rect.bottom > wall.rect.bottom:
-    #             self.rect.top = wall.rect.bottom
-    def __init__(self, x, y):
+    def __init__(self, x, y, size):
         super().__init__()
-        self.image = pygame.Surface((mul - 2, mul - 2))
+        self.image = pygame.Surface((size, size))
         self.image.fill(red)
         self.rect = self.image.get_rect(topleft=(x, y))
-        self.speed = 5
+        self.moveAmount = size
+        self.moves = 0
 
+    def move(self, direction):
+        # Track original position
+        original_position = self.rect.topleft
 
-    def update(self):
-        keys = pygame.key.get_pressed()
-        movement = pygame.Vector2(0, 0)  # Track intended movement direction
-
-
-        # Determine movement based on key press
-        if keys[pygame.K_LEFT]:
-            movement.x = -self.speed
-        elif keys[pygame.K_RIGHT]:
-            movement.x = self.speed
-        if keys[pygame.K_UP]:
-            movement.y = -self.speed
-        elif keys[pygame.K_DOWN]:
-            movement.y = self.speed
-
-
-        # Apply movement
-        self.rect.x += movement.x
-        self.rect.y += movement.y
-
+        # Move the player
+        if direction == 'left':
+            self.rect.x -= self.moveAmount
+        elif direction == 'right':
+            self.rect.x += self.moveAmount
+        elif direction == 'up':
+            self.rect.y -= self.moveAmount
+        elif direction == 'down':
+            self.rect.y += self.moveAmount
 
         # Check for collisions with walls
-        wall_collisions = pygame.sprite.spritecollide(self, walls, False)
-        for wall in wall_collisions:
-            if movement.x < 0:  # Moving left
-                self.rect.left = wall.rect.right
-            elif movement.x > 0:  # Moving right
-                self.rect.right = wall.rect.left
-            elif movement.y < 0:  # Moving up
-                self.rect.top = wall.rect.bottom
-            elif movement.y > 0:  # Moving down
-                self.rect.bottom = wall.rect.top
+        wall_collisions = pygame.sprite.spritecollide(self, WALLS, False)
+        if wall_collisions:
+            # If collision, reset to original position
+            self.rect.topleft = original_position
+        else:
+            self.moves += 1
 
-
-player = Player((offset // 2), (offset // 2))
-all_sprites = pygame.sprite.Group(player, *walls)
+player = Player(border + wallSize, border + wallSize, wallSize)
+goal = [border + wallSize*(rowAC - 2), border + wallSize*(colAC - 2)]
+all_sprites = pygame.sprite.Group(player)
 clock = pygame.time.Clock()
 
+# Count of Moves Made
+def MoveCount(choice, color, font, size):
+    score_font = pygame.font.SysFont(font, size)
+    score_surface = score_font.render('Move Count : ' + str(player.moves), True, color)
+    score_rect = score_surface.get_rect()
+    if choice == 1:
+        score_rect.midtop = (frameSizeX/2, 5)
+    else:
+        score_rect.midtop = (frameSizeX/2, 100)
+    game_window.blit(score_surface, score_rect)
 
-# Game Loop
+''' UPDATE ONCE A* ALORITHEM IS DONE'''
+# Game Over Screen 
+def gameoverScreen():
+    my_font = pygame.font.SysFont('consolas', 90)
+    game_over_surface = my_font.render('Maze Complete', True, white)
+    game_over_rect = game_over_surface.get_rect()
+    game_over_rect.midtop = (frameSizeX/2, frameSizeY/4)
+    game_window.fill(black)
+    game_window.blit(game_over_surface, game_over_rect)
+
+    # if MoveCount > AStarMove:
+    #     color = green
+    # elif MoveCount <= AStarMove:
+    #     color = red
+
+    MoveCount(0, red, 'times', 20)
+
+    pygame.display.flip()
+
+
+
+'''Game Loop'''
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -164,16 +178,34 @@ while True:
             if event.key == pygame.K_ESCAPE:
                 pygame.quit()
                 sys.exit()
+            elif event.key == pygame.K_LEFT:
+                player.move('left')
+            elif event.key == pygame.K_RIGHT:
+                player.move('right')
+            elif event.key == pygame.K_UP:
+                player.move('up')
+            elif event.key == pygame.K_DOWN:
+                player.move('down')
 
-
-    all_sprites.update()
+    
     game_window.fill((black))
+    WALLS.draw(game_window)
     all_sprites.draw(game_window)
+
+    # End Point
+    pygame.draw.rect(game_window, green, (goal[0], goal[1], wallSize, wallSize))
+
+    # Game Over
+    if player.rect.x == goal[0] and player.rect.y == goal[1]:
+        gameoverScreen()
+
+    # for p in path:
+    #     a, b = p   
+    #     if 0 <= a < rowAC and 0 <= b < colAC:         
+    #         pygame.draw.rect(game_window, green, (a * wallSize + border, b * wallSize + border, wallSize/2, wallSize/2))
+
+    MoveCount(1, white, 'consolas', 20)
     pygame.display.flip()
     clock.tick(60)
-
-
-   
-
 
 
